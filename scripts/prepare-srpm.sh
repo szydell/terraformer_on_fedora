@@ -1,11 +1,11 @@
 #!/bin/bash
-# Buduje SRPM dla terraformer
+# Build SRPM for terraformer
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Odczytaj wersję i release
+# Read version and release
 VERSION=$(cat "${PROJECT_DIR}/VERSION")
 RELEASE=$(cat "${PROJECT_DIR}/RELEASE")
 
@@ -13,28 +13,28 @@ REPO_URL="https://github.com/GoogleCloudPlatform/terraformer"
 
 echo "==> Preparing Terraformer SRPM for version ${VERSION}-${RELEASE}"
 
-# Przejdź do katalogu projektu
+# Change to project directory
 cd "${PROJECT_DIR}"
 
-# Pobierz źródła jeśli nie istnieją
+# Download sources if not exists
 echo "==> Downloading source tarball..."
 if [ ! -f "SOURCES/${VERSION}.tar.gz" ]; then
     curl -L -o "SOURCES/${VERSION}.tar.gz" "${REPO_URL}/archive/refs/tags/${VERSION}.tar.gz"
 fi
 
-# Wygeneruj changelog entry i dodaj do spec
+# Generate changelog entry and add to spec
 echo "==> Generating changelog entry..."
 CHANGELOG_ENTRY=$("${SCRIPT_DIR}/generate-changelog-entry.sh" "${VERSION}" "${RELEASE}")
 
-# Stwórz tymczasowy spec z changelog
+# Create temporary spec with changelog
 SPEC_FILE="${PROJECT_DIR}/SPECS/terraformer.spec"
 TEMP_SPEC="${PROJECT_DIR}/SPECS/terraformer-build.spec"
 
-# Kopiuj spec i dodaj changelog
+# Copy spec and add changelog
 cp "${SPEC_FILE}" "${TEMP_SPEC}"
 echo "${CHANGELOG_ENTRY}" >> "${TEMP_SPEC}"
 
-# Zbuduj SRPM
+# Build SRPM
 echo "==> Building SRPM..."
 rpmbuild -bs \
     --define "_topdir ${PROJECT_DIR}" \
@@ -45,7 +45,7 @@ rpmbuild -bs \
     --define "_release ${RELEASE}" \
     "${TEMP_SPEC}"
 
-# Usuń tymczasowy spec
+# Remove temporary spec
 rm -f "${TEMP_SPEC}"
 
 echo "==> SRPM created successfully!"

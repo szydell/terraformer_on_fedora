@@ -1,10 +1,10 @@
 #!/bin/bash
-# Pobiera najnowszą wersję stabilną terraformer z GitHub API
+# Fetches the latest stable terraformer version from GitHub API
 set -e
 
 REPO="GoogleCloudPlatform/terraformer"
 
-# Pobierz latest release (pomijamy prereleases)
+# Get latest release (skipping prereleases)
 LATEST=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | \
     grep '"tag_name":' | \
     sed -E 's/.*"([^"]+)".*/\1/')

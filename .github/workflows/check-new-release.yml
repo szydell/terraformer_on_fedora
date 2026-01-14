@@ -2,7 +2,7 @@ name: Check for New Release
 
 on:
   schedule:
-    # Co 6 godzin
+    # Every 6 hours
     - cron: '0 */6 * * *'
   workflow_dispatch:
 

@@ -1,4 +1,4 @@
-# Ignoruj artefakty buildu
+# Ignore build artifacts
 *.src.rpm
 BUILD/
 BUILDROOT/

@@ -49,7 +49,7 @@ jobs:
           echo "current_version=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
           echo "current_release=${CURRENT_RELEASE}" >> $GITHUB_OUTPUT
           
-          # Ustal numer release
+          # Determine release number
           if [ "${NEW_VERSION}" != "${CURRENT_VERSION}" ]; then
             echo "Version changed from ${CURRENT_VERSION} to ${NEW_VERSION}"
             echo "release=1" >> $GITHUB_OUTPUT
@@ -69,6 +69,7 @@ jobs:
       - name: Download source tarball
         run: |
           VERSION="${{ steps.version.outputs.new_version }}"
+          mkdir -p SOURCES
           curl -L -o "SOURCES/${VERSION}.tar.gz" \
             "https://github.com/GoogleCloudPlatform/terraformer/archive/refs/tags/${VERSION}.tar.gz"
 
@@ -79,7 +80,7 @@ jobs:
           RELEASE="${{ steps.version.outputs.release }}"
           REPO="GoogleCloudPlatform/terraformer"
           
-          # Pobierz release notes
+          # Fetch release notes from GitHub
           RELEASE_NOTES=$(curl -s "https://api.github.com/repos/${REPO}/releases/tags/${VERSION}" | \
             jq -r '.body // "No release notes available"' | \
             head -20 | \
@@ -88,7 +89,7 @@ jobs:
           
           DATE=$(date "+%a %b %d %Y")
           
-          # Zapisz changelog do pliku
+          # Save changelog entry to file
           cat > /tmp/changelog_entry.txt << EOF
           * ${DATE} Automated Build <terraformer-copr@szydelscy.pl> - ${VERSION}-${RELEASE}
           - Update to version ${VERSION}
@@ -100,11 +101,11 @@ jobs:
           VERSION="${{ steps.version.outputs.new_version }}"
           RELEASE="${{ steps.version.outputs.release }}"
           
-          # Przygotuj spec z changelog
+          # Prepare spec with changelog
           cp SPECS/terraformer.spec SPECS/terraformer-build.spec
           cat /tmp/changelog_entry.txt >> SPECS/terraformer-build.spec
           
-          # Zbuduj SRPM
+          # Build SRPM
           rpmbuild -bs \
             --define "_topdir $(pwd)" \
             --define "_sourcedir $(pwd)/SOURCES" \
@@ -114,7 +115,7 @@ jobs:
             --define "_release ${RELEASE}" \
             SPECS/terraformer-build.spec
           
-          # Znajdź SRPM
+          # Find SRPM
           SRPM=$(ls -t *.src.rpm | head -1)
           echo "SRPM_FILE=${SRPM}" >> $GITHUB_ENV
 
