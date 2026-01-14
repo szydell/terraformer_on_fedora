@@ -101,6 +101,10 @@ jobs:
           VERSION="${{ steps.version.outputs.new_version }}"
           RELEASE="${{ steps.version.outputs.release }}"
           
+          # Update version and release in spec file
+          sed -i "s/^Version:.*/Version:        ${VERSION}/" SPECS/terraformer.spec
+          sed -i "s/^Release:.*/Release:        ${RELEASE}%{?dist}/" SPECS/terraformer.spec
+          
           # Prepare spec with changelog
           cp SPECS/terraformer.spec SPECS/terraformer-build.spec
           cat /tmp/changelog_entry.txt >> SPECS/terraformer-build.spec
@@ -111,8 +115,6 @@ jobs:
             --define "_sourcedir $(pwd)/SOURCES" \
             --define "_specdir $(pwd)/SPECS" \
             --define "_srcrpmdir $(pwd)" \
-            --define "_version ${VERSION}" \
-            --define "_release ${RELEASE}" \
             SPECS/terraformer-build.spec
           
           # Find SRPM
@@ -139,12 +141,12 @@ jobs:
           echo "==> Uploading ${SRPM_FILE} to COPR..."
           copr-cli build "${{ vars.COPR_USER }}/${{ vars.COPR_PROJECT }}" "${SRPM_FILE}"
 
-      - name: Commit VERSION and RELEASE updates
+      - name: Commit VERSION, RELEASE and spec updates
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          git add VERSION RELEASE
+          git add VERSION RELEASE SPECS/terraformer.spec
           
           VERSION="${{ steps.version.outputs.new_version }}"
           RELEASE="${{ steps.version.outputs.release }}"

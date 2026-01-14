@@ -6,12 +6,12 @@
 %global import_path     %{provider}.%{provider_tld}/%{project}/%{repo}
 
 Name:           terraformer
-Version:        %{_version}
-Release:        %{_release}%{?dist}
+Version:        0.8.30
+Release:        1%{?dist}
 Summary:        CLI tool to generate terraform files from existing infrastructure
 License:        Apache-2.0
 URL:            https://%{import_path}
-Source0:        https://%{import_path}/archive/refs/tags/%{_version}.tar.gz
+Source0:        https://%{import_path}/archive/refs/tags/%{version}.tar.gz
 
 BuildRequires:  golang >= 1.19
 BuildRequires:  git
@@ -22,14 +22,14 @@ infrastructure (reverse Terraform). Supports multiple cloud providers
 including AWS, GCP, Azure, Kubernetes, and more.
 
 %prep
-%setup -q -n %{repo}-%{_version}
+%setup -q -n %{repo}-%{version}
 
 %build
 export GO111MODULE=on
 export CGO_ENABLED=0
 
 go build -v -a \
-    -ldflags "-X main.version=%{_version}" \
+    -ldflags "-X main.version=%{version}" \
     -o %{name} .
 
 %install
