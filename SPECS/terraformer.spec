@@ -7,7 +7,7 @@
 
 Name:           terraformer
 Version:        0.8.30
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        CLI tool to generate terraform files from existing infrastructure
 License:        Apache-2.0
 URL:            https://%{import_path}
