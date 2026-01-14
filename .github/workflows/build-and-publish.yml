@@ -26,6 +26,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
+          fetch-depth: 0
 
       - name: Install dependencies
         run: |
@@ -136,11 +138,6 @@ jobs:
           copr_url = https://copr.fedorainfracloud.org
           EOF
 
-      - name: Upload to COPR
-        run: |
-          echo "==> Uploading ${SRPM_FILE} to COPR..."
-          copr-cli build "${{ vars.COPR_USER }}/${{ vars.COPR_PROJECT }}" "${SRPM_FILE}"
-
       - name: Commit VERSION, RELEASE and spec updates
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -153,6 +150,11 @@ jobs:
           
           git commit -m "Build terraformer ${VERSION}-${RELEASE}" || echo "No changes to commit"
           git push
+
+      - name: Upload to COPR
+        run: |
+          echo "==> Uploading ${SRPM_FILE} to COPR..."
+          copr-cli build "${{ vars.COPR_USER }}/${{ vars.COPR_PROJECT }}" "${SRPM_FILE}"
 
       - name: Summary
         run: |
