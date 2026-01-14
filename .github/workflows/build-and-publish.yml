@@ -1,0 +1,164 @@
+name: Build and Publish to COPR
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (leave empty to use VERSION file)'
+        required: false
+        type: string
+      force_rebuild:
+        description: 'Force rebuild even if version exists'
+        required: false
+        type: boolean
+        default: false
+  repository_dispatch:
+    types: [new-release]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: registry.gitlab.com/szydell/containers/fedora-golang:latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          dnf install -y rpm-build curl jq python3-pip git
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            NEW_VERSION="${{ github.event.inputs.version }}"
+          elif [ -n "${{ github.event.client_payload.version }}" ]; then
+            NEW_VERSION="${{ github.event.client_payload.version }}"
+          else
+            NEW_VERSION=$(cat VERSION)
+          fi
+          
+          CURRENT_VERSION=$(cat VERSION)
+          CURRENT_RELEASE=$(cat RELEASE)
+          
+          echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "current_version=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
+          echo "current_release=${CURRENT_RELEASE}" >> $GITHUB_OUTPUT
+          
+          # Ustal numer release
+          if [ "${NEW_VERSION}" != "${CURRENT_VERSION}" ]; then
+            echo "Version changed from ${CURRENT_VERSION} to ${NEW_VERSION}"
+            echo "release=1" >> $GITHUB_OUTPUT
+            echo "version_changed=true" >> $GITHUB_OUTPUT
+          else
+            NEW_RELEASE=$((CURRENT_RELEASE + 1))
+            echo "Same version, incrementing release to ${NEW_RELEASE}"
+            echo "release=${NEW_RELEASE}" >> $GITHUB_OUTPUT
+            echo "version_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update VERSION and RELEASE files
+        run: |
+          echo "${{ steps.version.outputs.new_version }}" > VERSION
+          echo "${{ steps.version.outputs.release }}" > RELEASE
+
+      - name: Download source tarball
+        run: |
+          VERSION="${{ steps.version.outputs.new_version }}"
+          curl -L -o "SOURCES/${VERSION}.tar.gz" \
+            "https://github.com/GoogleCloudPlatform/terraformer/archive/refs/tags/${VERSION}.tar.gz"
+
+      - name: Generate changelog entry
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.new_version }}"
+          RELEASE="${{ steps.version.outputs.release }}"
+          REPO="GoogleCloudPlatform/terraformer"
+          
+          # Pobierz release notes
+          RELEASE_NOTES=$(curl -s "https://api.github.com/repos/${REPO}/releases/tags/${VERSION}" | \
+            jq -r '.body // "No release notes available"' | \
+            head -20 | \
+            sed 's/^/  /' | \
+            sed 's/\r//g')
+          
+          DATE=$(date "+%a %b %d %Y")
+          
+          # Zapisz changelog do pliku
+          cat > /tmp/changelog_entry.txt << EOF
+          * ${DATE} Automated Build <terraformer-copr@szydelscy.pl> - ${VERSION}-${RELEASE}
+          - Update to version ${VERSION}
+          ${RELEASE_NOTES}
+          EOF
+
+      - name: Build SRPM
+        run: |
+          VERSION="${{ steps.version.outputs.new_version }}"
+          RELEASE="${{ steps.version.outputs.release }}"
+          
+          # Przygotuj spec z changelog
+          cp SPECS/terraformer.spec SPECS/terraformer-build.spec
+          cat /tmp/changelog_entry.txt >> SPECS/terraformer-build.spec
+          
+          # Zbuduj SRPM
+          rpmbuild -bs \
+            --define "_topdir $(pwd)" \
+            --define "_sourcedir $(pwd)/SOURCES" \
+            --define "_specdir $(pwd)/SPECS" \
+            --define "_srcrpmdir $(pwd)" \
+            --define "_version ${VERSION}" \
+            --define "_release ${RELEASE}" \
+            SPECS/terraformer-build.spec
+          
+          # Znajdź SRPM
+          SRPM=$(ls -t *.src.rpm | head -1)
+          echo "SRPM_FILE=${SRPM}" >> $GITHUB_ENV
+
+      - name: Install copr-cli
+        run: |
+          pip install copr-cli
+
+      - name: Configure COPR
+        run: |
+          mkdir -p ~/.config
+          cat > ~/.config/copr << EOF
+          [copr-cli]
+          login = ${{ vars.COPR_USER }}
+          username = ${{ vars.COPR_USER }}
+          token = ${{ secrets.COPR_API_TOKEN }}
+          copr_url = https://copr.fedorainfracloud.org
+          EOF
+
+      - name: Upload to COPR
+        run: |
+          echo "==> Uploading ${SRPM_FILE} to COPR..."
+          copr-cli build "${{ vars.COPR_USER }}/${{ vars.COPR_PROJECT }}" "${SRPM_FILE}"
+
+      - name: Commit VERSION and RELEASE updates
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          git add VERSION RELEASE
+          
+          VERSION="${{ steps.version.outputs.new_version }}"
+          RELEASE="${{ steps.version.outputs.release }}"
+          
+          git commit -m "Build terraformer ${VERSION}-${RELEASE}" || echo "No changes to commit"
+          git push
+
+      - name: Summary
+        run: |
+          VERSION="${{ steps.version.outputs.new_version }}"
+          RELEASE="${{ steps.version.outputs.release }}"
+          
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release:** ${RELEASE}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Package:** terraformer-${VERSION}-${RELEASE}" >> $GITHUB_STEP_SUMMARY
+          echo "- **COPR:** https://copr.fedorainfracloud.org/coprs/${{ vars.COPR_USER }}/${{ vars.COPR_PROJECT }}/" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,71 @@
+name: Check for New Release
+
+on:
+  schedule:
+    # Co 6 godzin
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get latest upstream version
+        id: upstream
+        run: |
+          LATEST=$(curl -s "https://api.github.com/repos/GoogleCloudPlatform/terraformer/releases/latest" | \
+            jq -r '.tag_name')
+          
+          if [ -z "$LATEST" ] || [ "$LATEST" == "null" ]; then
+            echo "ERROR: Could not fetch latest version"
+            exit 1
+          fi
+          
+          echo "version=${LATEST}" >> $GITHUB_OUTPUT
+          echo "Latest upstream version: ${LATEST}"
+
+      - name: Get current built version
+        id: current
+        run: |
+          CURRENT=$(cat VERSION)
+          echo "version=${CURRENT}" >> $GITHUB_OUTPUT
+          echo "Current built version: ${CURRENT}"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          UPSTREAM="${{ steps.upstream.outputs.version }}"
+          CURRENT="${{ steps.current.outputs.version }}"
+          
+          if [ "${UPSTREAM}" != "${CURRENT}" ]; then
+            echo "New version available: ${UPSTREAM} (current: ${CURRENT})"
+            echo "new_version=true" >> $GITHUB_OUTPUT
+          else
+            echo "No new version. Current: ${CURRENT}"
+            echo "new_version=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger build
+        if: steps.compare.outputs.new_version == 'true'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: new-release
+          client-payload: '{"version": "${{ steps.upstream.outputs.version }}"}'
+
+      - name: Summary
+        run: |
+          echo "## Version Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Upstream version:** ${{ steps.upstream.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Current version:** ${{ steps.current.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New version available:** ${{ steps.compare.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.compare.outputs.new_version }}" == "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🚀 **Build triggered for version ${{ steps.upstream.outputs.version }}**" >> $GITHUB_STEP_SUMMARY
+          fi

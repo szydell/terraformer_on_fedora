@@ -1,0 +1,8 @@
+# Ignoruj artefakty buildu
+*.src.rpm
+BUILD/
+BUILDROOT/
+RPMS/
+SRPMS/
+SOURCES/*.tar.gz
+SPECS/terraformer-build.spec
