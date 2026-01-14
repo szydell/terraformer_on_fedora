@@ -128,7 +128,7 @@ jobs:
           mkdir -p ~/.config
           cat > ~/.config/copr << EOF
           [copr-cli]
-          login = ${{ vars.COPR_USER }}
+          login = ${{ secrets.COPR_API_LOGIN }}
           username = ${{ vars.COPR_USER }}
           token = ${{ secrets.COPR_API_TOKEN }}
           copr_url = https://copr.fedorainfracloud.org
