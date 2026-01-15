@@ -13,7 +13,7 @@ License:        Apache-2.0
 URL:            https://%{import_path}
 Source0:        https://%{import_path}/archive/refs/tags/%{version}.tar.gz
 
-BuildRequires:  golang >= 1.24
+BuildRequires:  golang >= 1.25
 BuildRequires:  git
 
 %description
